@@ -169,10 +169,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # IMPORTANT: For EC2 testing from browser, change this to your public IP before building:
-      # e.g. VITE_GATEWAY_URL=http://<your-ec2-public-ip>:8080
-      # When running on the EC2 instance itself and accessing via localhost in browser: http://localhost:8080
-      - VITE_GATEWAY_URL=http://gateway:80
+      - VITE_GATEWAY_URL=${VITE_GATEWAY_URL:-http://gateway:80}
     depends_on:
       - gateway
     restart: unless-stopped
