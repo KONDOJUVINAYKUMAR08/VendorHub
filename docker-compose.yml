@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: vendorhub-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  auth-service:
+    build: ./backend/services/auth-service
+    container_name: auth-service
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/auth?authSource=admin
+      - JWT_SECRET=vendorhub-jwt-secret-2026-change-in-prod
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vendor-service:
+    build: ./backend/services/vendor-service
+    container_name: vendor-service
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/vendor?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      - mongo
+      - auth-service
+    restart: unless-stopped
+
+  document-service:
+    build: ./backend/services/document-service
+    container_name: document-service
+    ports:
+      - "5003:5003"
+    environment:
+      - PORT=5003
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/document?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:5005
+      - AUDIT_SERVICE_URL=http://audit-service:5006
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5007
+      - WORKFLOW_SERVICE_URL=http://workflow-service:5004
+      - EXPIRY_WINDOW_DAYS=90
+      - INTERNAL_SECRET=internal-service-secret-2026
+    volumes:
+      - document-uploads:/app/uploads  # persist uploaded files
+    depends_on:
+      - mongo
+      - auth-service
+      - compliance-service
+      - audit-service
+      - notification-service
+      - workflow-service
+    restart: unless-stopped
+
+  workflow-service:
+    build: ./backend/services/workflow-service
+    container_name: workflow-service
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/workflow?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - DOCUMENT_SERVICE_URL=http://document-service:5003
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:5005
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      - mongo
+      - auth-service
+    restart: unless-stopped
+
+  compliance-service:
+    build: ./backend/services/compliance-service
+    container_name: compliance-service
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/compliance?authSource=admin
+      - DOCUMENT_SERVICE_URL=http://document-service:5003
+      - VENDOR_SERVICE_URL=http://vendor-service:5002
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - EXPIRY_WINDOW_DAYS=90
+      - HIGH_RISK_EXPIRED_THRESHOLD=0
+      - HIGH_RISK_REJECTED_THRESHOLD=1
+      - HIGH_RISK_COMPLIANCE_RATIO=0.4
+      - MEDIUM_RISK_EXPIRING_THRESHOLD=2
+      - MEDIUM_RISK_COMPLIANCE_RATIO=0.75
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      - mongo
+      - document-service
+      - auth-service
+    restart: unless-stopped
+
+  audit-service:
+    build: ./backend/services/audit-service
+    container_name: audit-service
+    ports:
+      - "5006:5006"
+    environment:
+      - PORT=5006
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/audit?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      - mongo
+      - auth-service
+    restart: unless-stopped
+
+  notification-service:
+    build: ./backend/services/notification-service
+    container_name: notification-service
+    ports:
+      - "5007:5007"
+    environment:
+      - PORT=5007
+      - MONGO_URI=mongodb://admin:password123@mongo:27017/notification?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - INTERNAL_SECRET=internal-service-secret-2026
+    depends_on:
+      - mongo
+      - auth-service
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  document-uploads:

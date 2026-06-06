@@ -1,0 +1,169 @@
+You are an expert full-stack developer and DevOps engineer specializing in building scalable, production-grade microservices applications.
+
+You have full access to the existing `vendorhub` repository/folder. The project already has a basic `frontend/` (React + Vite + Tailwind) and `backend/` structure. **You must explore the current code first**, then evolve and refactor it into a proper microservices architecture while keeping the overall single-folder project structure.
+
+### Goal
+Build a **complete, fully functional, end-to-end working VendorHub** — a real Vendor Risk & Compliance Management Platform — decomposed into microservices. The application must solve the real business problem of managing vendor compliance at scale with **zero hardcoded values**, proper multi-user authentication, and all features working together seamlessly.
+
+### Project Structure (Maintain This)
+```
+vendorhub/
+├── frontend/                    # React frontend (single SPA that talks to API Gateway or services)
+├── backend/
+│   ├── services/
+│   │   ├── auth-service/
+│   │   ├── vendor-service/
+│   │   ├── document-service/
+│   │   ├── compliance-service/
+│   │   ├── workflow-service/
+│   │   ├── audit-service/
+│   │   └── notification-service/
+│   ├── shared/                  # Common libraries, DTOs, event schemas
+│   └── api-gateway/             # Optional lightweight gateway (or use nginx)
+├── docker-compose.yml
+├── .env.example
+├── README.md
+└── (seed scripts, etc.)
+```
+
+Each microservice must be independently runnable and deployable (own Dockerfile, own package.json, own database collections or database).
+
+### Required Microservices (Implement All of These)
+
+You must build the following microservices. Each should own its own data and business logic:
+
+1. **Auth Service**
+   - User registration and login (for both Internal users and Vendors)
+   - JWT issuance and validation
+   - Role-based access (Admin, Reviewer, Vendor)
+   - Password hashing
+   - Token refresh
+
+2. **Vendor Service**
+   - CRUD for vendor profiles
+   - Vendor self-registration (via portal)
+   - Basic vendor metadata and contacts
+   - Search and filtering of vendors
+
+3. **Document Service**
+   - Document upload (single + bulk)
+   - Document versioning (same filename = new version + history)
+   - Document metadata (type, expiry date, status, file path)
+   - Actual file storage (local for now, structured for future S3)
+   - Expiry tracking
+
+4. **Compliance Service**
+   - Real-time risk scoring and status calculation for vendors
+   - Business rules for risk (based on document completeness, expiry, rejections)
+   - No hardcoded values — make thresholds configurable
+   - Compliance status (Active / Under Review / High Risk)
+
+5. **Workflow Service**
+   - Approval workflows (multi-stage review: Security → Legal → Procurement)
+   - Pending approval queue
+   - Approve / Reject actions with comments
+   - State management for document reviews
+
+6. **Audit Service**
+   - Immutable audit logging of every significant action
+   - Queryable audit trail (by vendor, action type, date, user)
+   - Must capture who did what and when
+
+7. **Notification Service**
+   - In-app notifications
+   - Expiry alerts and reminders
+   - Workflow status updates
+   - Simple notification center (simulate SNS/EventBridge)
+
+### Communication Between Services
+- Use **event-driven architecture** where possible (publish/subscribe pattern).
+- For local Docker testing, use a simple message broker (e.g., RabbitMQ or just direct HTTP + event simulation via MongoDB change streams or a shared events collection).
+- Services should be loosely coupled. For example:
+  - Document Service publishes "DocumentUploaded" event
+  - Compliance Service and Notification Service react to it
+
+### Database
+- Use **MongoDB** for all services (official `mongo` Docker image).
+- Each service can use its own database or collections (e.g., auth-db, document-db, audit-db).
+- Provide proper indexes.
+- Data must persist across container restarts (use volumes in docker-compose).
+
+### Docker & Testing Requirements
+- Create a complete `docker-compose.yml` that starts:
+  - MongoDB (official image)
+  - All 7 microservices
+  - (Optional) A simple reverse proxy / API gateway
+- The entire backend stack must be testable with `docker-compose up`.
+- Include a seed script that populates realistic data (multiple vendors, documents, users with different roles) when the stack starts.
+- Frontend can be run separately (`npm run dev`) or added as a service. It must connect to the backend services.
+
+### Authentication & Users (Proper, No Hardcoding)
+- Centralized auth via the Auth Service.
+- Real JWT-based authentication with role enforcement.
+- At least these roles:
+  - `admin` (full access)
+  - `reviewer` (can approve/reject documents)
+  - `vendor` (self-service portal only for their own data)
+- Seed at least:
+  - 1 Admin
+  - 2 Reviewers
+  - 5 Vendors
+- All with clear test credentials documented in README.
+
+### Core Features (Must All Work End-to-End)
+- Vendor self-service portal (upload documents, view status)
+- Internal dashboard with live stats, risk distribution, expiring documents
+- Document upload with versioning + bulk support
+- Approval workflow with comments
+- Automatic risk scoring based on real documents
+- Full searchable audit trail
+- Expiring documents list (global)
+- In-app notifications
+- Role-based UI (different views and permissions for Vendor vs Internal)
+- Search and filtering across vendors and documents
+
+### No Hardcoded Values Rule
+- All business rules, thresholds (e.g., 90-day expiry window), document types, risk calculation logic must be configurable (via environment variables, config service, or database).
+- Risk scores and statuses must be calculated dynamically from actual data.
+- No mock data or fake responses in the final version.
+
+### Frontend Requirements
+- Beautiful, professional **light-only** theme (deep blue + emerald accents).
+- Clean SaaS UI with proper loading states, error handling, and toasts.
+- The frontend should feel like one application even if it calls multiple backend services (use a simple API gateway or direct calls with proper routing).
+- Role switcher during development is acceptable, but final auth must be real.
+
+### Migration-Ready Notes
+- Design the services so they can later be moved to EKS.
+- Document in comments how each service would map to AWS (S3 for documents, EventBridge for events, DynamoDB for high-write services, etc.).
+- The user will later replace MongoDB with DynamoDB — keep data models reasonably flexible.
+
+### Final Deliverables
+- A fully working application where the complete flow works:
+  1. Vendor registers and logs in
+  2. Uploads documents (single + bulk + versioning)
+  3. Internal reviewer sees them, approves/rejects
+  4. Risk scores update live
+  5. Audit trail populates
+  6. Expiring documents and notifications appear
+- Working `docker-compose.yml` that starts the full stack (MongoDB + all services)
+- Seed data so a new user can immediately test the full end-to-end experience
+- Comprehensive README with:
+  - How to run locally (npm)
+  - How to run with Docker Compose
+  - Test credentials
+  - Architecture overview (microservices + events)
+  - How to add a new service
+
+### Instructions for You
+1. First, explore the existing code in `frontend/` and `backend/`.
+2. Decompose the logic into the 7 microservices listed above.
+3. Implement proper inter-service communication (events where logical).
+4. Set up Docker Compose with the official MongoDB image.
+5. Ensure the entire application is testable end-to-end with no broken flows.
+6. Remove all hardcoded values and mocks.
+7. Make authentication, versioning, bulk upload, risk engine, audit, and notifications fully real and working.
+
+Deliver a complete, reliable, professional-grade application that genuinely solves the vendor risk and compliance problem.
+
+Start by summarizing what you find in the existing folders, then begin the implementation.
