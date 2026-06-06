@@ -44,6 +44,9 @@ function App() {
 
   const location = useLocation()
 
+  // Derived role from real auth if logged in, fallback to dev switcher
+  const viewRole = currentUser ? (currentUser.role === 'vendor' ? 'vendor' : 'internal') : role
+
   // Load real data from backend - this makes the app actually solve the business problem
   const loadData = async () => {
     try {
@@ -55,24 +58,40 @@ function App() {
 
       const headers = { 'Authorization': `Bearer ${token}` }
 
-      const [vendorsRes, auditRes, complianceRes, workflowRes] = await Promise.all([
+      const [vendorsRes, auditRes, complianceRes, workflowRes, risksRes] = await Promise.all([
         fetch(`${API_BASE.vendor}`, { headers }),
         fetch(`${API_BASE.audit}/logs`, { headers }),
         fetch(`${API_BASE.compliance}/dashboard`, { headers }),
-        fetch(`${API_BASE.workflow}/tasks`, { headers })
+        fetch(`${API_BASE.workflow}/tasks`, { headers }),
+        fetch(`${API_BASE.compliance}/risks`, { headers })
       ])
 
       const vendorsData = await vendorsRes.json()
       const auditData = await auditRes.json()
       const complianceData = await complianceRes.json()
       const workflowData = await workflowRes.json()
+      const risksData = await risksRes.json()
 
-      setVendors(vendorsData || [])
+      // Enrich vendors with live risk/score from compliance service (dynamic, no hardcode)
+      const enrichedVendors = (vendorsData || []).map(v => {
+        const riskInfo = (risksData || []).find(r => r.vendorId === v.id) || {}
+        return {
+          ...v,
+          risk: riskInfo.risk || 'Medium',
+          score: riskInfo.score || 50,
+          status: riskInfo.status || 'Under Review',
+          documents: 0, // will be enhanced if doc count added
+          expiring: 0,
+          lastReview: v.lastReview || 'N/A'
+        }
+      })
+
+      setVendors(enrichedVendors)
       setAuditLogs(auditData || [])
       setWorkflowQueue(workflowData || [])
 
       setDashboardStats({
-        totalVendors: complianceData.totalVendors || vendorsData.length,
+        totalVendors: complianceData.totalVendors || enrichedVendors.length,
         highRisk: complianceData.highRisk || 0,
         expiringSoon: complianceData.expiringSoon || 0,
         avgScore: complianceData.avgScore || 0,
@@ -533,7 +552,8 @@ function App() {
   )
 
   const renderVendorPortal = () => {
-    const myVendor = vendors[0] || { name: "Your Company", score: 0, documents: 0, expiring: 0, documentsList: [] }
+    const myVendorId = currentUser?.vendorId || 'v1'
+    const myVendor = vendors.find(v => v.id === myVendorId) || vendors[0] || { name: "Your Company", score: 0, documents: 0, expiring: 0, documentsList: [] }
     return (
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
@@ -614,7 +634,7 @@ function App() {
       </nav>
 
       <div className="max-w-screen-2xl mx-auto px-8 py-8">
-        {role === 'vendor' ? (
+        {viewRole === 'vendor' ? (
           <>
             <div className="mb-6 flex items-center justify-between">
               <div>
@@ -710,7 +730,7 @@ function App() {
               <div className="flex gap-3 justify-end">
                 <button onClick={() => setShowUploadModal(false)} disabled={isUploading} className="btn btn-outline">Cancel</button>
                 <button onClick={() => {
-                  const target = role === 'vendor' ? (vendors[0]?.id) : (currentVendorId || (vendors[0]?.id))
+                  const target = (viewRole === 'vendor' && currentUser?.vendorId) ? currentUser.vendorId : (currentVendorId || (vendors[0]?.id))
                   handleUpload(target)
                 }} disabled={isUploading || !newDocName.trim()} className="btn btn-primary">
                   {isUploading ? 'Uploading...' : 'Upload & Save'}
@@ -761,7 +781,7 @@ function App() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`badge ${(doc.status === 'Valid' || doc.status === 'Approved') ? 'badge-green' : 'badge-orange'}`}>{doc.status}</span>
-                        {(doc.status === 'Valid' || doc.status === 'Expiring Soon') && role === 'internal' && (
+                        {(doc.status === 'Valid' || doc.status === 'Expiring Soon') && viewRole === 'internal' && (
                           <button onClick={() => approveDocument(selectedVendor.id, doc.id)} className="btn btn-sm btn-accent">Approve</button>
                         )}
                       </div>
