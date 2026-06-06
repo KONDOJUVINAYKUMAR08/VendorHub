@@ -621,7 +621,7 @@ function App() {
             {currentUser && (
               <button onClick={() => {
                 localStorage.removeItem('token')
-                setToken(')
+                setToken('')
                 setCurrentUser(null)
                 setRole('internal')
                 setVendors([])
