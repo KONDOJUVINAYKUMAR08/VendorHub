@@ -9,13 +9,18 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { format, addDays } from 'date-fns'
 import { toast } from 'sonner'
 
+// Configurable gateway (single entry point for all services)
+// - Local dev (outside Docker): http://localhost:8080 (after starting gateway)
+// - Docker / EC2 testing: set VITE_GATEWAY_URL=http://<EC2-PUBLIC-IP>:8080  or http://localhost:8080 when on the instance
+const GATEWAY = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080';
+
 const API_BASE = {
-  auth: 'http://localhost:5001/api/auth',
-  document: 'http://localhost:5003/api/documents',
-  compliance: 'http://localhost:5005/api/compliance',
-  audit: 'http://localhost:5006/api/audit',
-  notification: 'http://localhost:5007/api/notifications',
-  vendor: 'http://localhost:5002/api/vendors'
+  auth: `${GATEWAY}/api/auth`,
+  document: `${GATEWAY}/api/documents`,
+  compliance: `${GATEWAY}/api/compliance`,
+  audit: `${GATEWAY}/api/audit`,
+  notification: `${GATEWAY}/api/notifications`,
+  vendor: `${GATEWAY}/api/vendors`
 };
 
 function App() {
@@ -621,7 +626,7 @@ function App() {
             {currentUser && (
               <button onClick={() => {
                 localStorage.removeItem('token')
-                setToken('')
+                setToken(')
                 setCurrentUser(null)
                 setRole('internal')
                 setVendors([])
